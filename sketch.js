@@ -13,6 +13,9 @@ let detectedCount = 0;
 let detectionHistory = []; // 用於穩定偵測結果 (防止跳動)
 let problemHistory = []; // 儲存答對的歷史題目
 let correctTimer = 0; // 用於確認穩定比出正確答案
+let shakeAmount = 0; // 電視機震動強度
+let wrongTimer = 0; // 用於偵測錯誤手勢的持續時間
+let flashRed = 0; // 電視紅光閃爍強度
 let gameState = "START"; // START, PLAYING, END
 
 // 計時器變數
@@ -24,6 +27,7 @@ let timeRemaining; // 剩餘時間 (秒)
 let videoW, videoH, videoX, videoY;
 let mirrorOffset;
 let captureLoaded = false;
+let bgGraphics; // 用於儲存預生成的可愛背景
 
 let btnSimple, btnHard, btnReset, btnDownload; // 改為全域變數方便管理
 
@@ -36,6 +40,10 @@ function setup() {
   capture.size(640, 480); // 強制設定解析度，增加偵測穩定度
   // 隱藏預設在畫布下方的 HTML 影片元件
   capture.hide();
+
+  // 生成可愛的數學符號背景
+  bgGraphics = createGraphics(windowWidth, windowHeight);
+  drawCuteBackground();
 
   // 初始化佈局變數
   updateLayout();
@@ -97,20 +105,37 @@ function startGame(mode) {
   generateProblem(); // 生成第一題
 }
 function draw() {
-  // 設定畫布背景顏色為 669bbc
-  background('#669bbc');
+  // 繪製預生成的可愛背景
+  if (bgGraphics) {
+    image(bgGraphics, 0, 0);
+  }
   
+  // 計算電視機震動偏移量
+  let sx = 0;
+  let sy = 0;
+  if (shakeAmount > 0.1) {
+    sx = random(-shakeAmount, shakeAmount);
+    sy = random(-shakeAmount, shakeAmount);
+    shakeAmount *= 0.85; // 每幀衰減震動強度，產生回彈感
+  } else {
+    shakeAmount = 0;
+  }
+  
+  flashRed *= 0.9; // 紅光自動衰減
+
   // 檢查攝影機是否準備好，更新一次佈局
   if (!captureLoaded && capture.width > 0) {
     updateLayout();
     captureLoaded = true;
   }
-
   handleTimer();
+
+  // 繪製電視機外殼 (放在影像底層)
+  drawTVShell(videoX + sx, videoY + sy, videoW, videoH, flashRed);
 
   // 處理影像左右顛倒 (水平鏡像) 並繪製到畫面上
   push();
-  translate(mirrorOffset, videoY); // 使用快取的位移值
+  translate(mirrorOffset + sx, videoY + sy); // 套用震動偏移
   scale(-1, 1);            // 水平翻轉
   
   // 繪製攝影機影像
@@ -123,21 +148,108 @@ function draw() {
   }
   pop();
 
+  // 繪製電視機裝飾：天線與按鈕 (放在影像頂層)
+  drawTVDecorations(videoX + sx, videoY + sy, videoW, videoH);
+
   // 顯示教學狀態資訊
-  drawUI(videoX, videoY, videoW, videoH);
+  drawUI(videoX + sx, videoY + sy, videoW, videoH);
   
   // 檢查答案邏輯
-  if (gameState === "PLAYING" && isModelReady && predictions.length > 0 && detectedCount === targetAnswer && targetAnswer !== undefined) {
-    correctTimer++;
-    if (correctTimer > 30) { // 持續約 0.5 秒正確則進下一題
-      score++;
-      problemHistory.unshift(`${numA} ${operationSymbol} ${numB} = ${targetAnswer}`);
-      if (problemHistory.length > 5) problemHistory.pop(); // 只保留最近 5 題
-      generateProblem();
+  if (gameState === "PLAYING" && isModelReady && predictions.length > 0 && targetAnswer !== undefined) {
+    if (detectedCount === targetAnswer) {
+      correctTimer++;
+      wrongTimer = 0; // 答對時重置錯誤計時
+      if (correctTimer > 30) { 
+        score++;
+        shakeAmount = 20;
+        problemHistory.unshift(`${numA} ${operationSymbol} ${numB} = ${targetAnswer}`);
+        if (problemHistory.length > 5) problemHistory.pop();
+        generateProblem();
+      }
+    } else {
+      correctTimer = 0; // 答錯時重置正確計時
+      wrongTimer++;
+      if (wrongTimer > 45) { // 如果比錯的姿勢維持超過約 0.75 秒
+        flashRed = 150; // 觸發紅光閃爍
+        wrongTimer = 0; // 重置以容許連續閃爍
+      }
     }
   } else {
     correctTimer = 0;
+    wrongTimer = 0;
   }
+}
+
+// 繪製可愛的數學符號背景函式
+function drawCuteBackground() {
+  bgGraphics.background('#1b263b'); // 改為深邃的午夜藍
+  
+  let symbols = ["+", "-", "×", "÷"];
+  let colors = ['#ffadad', '#ffd6a5', '#fdffb6', '#caffbf', '#9bf6ff', '#a0c4ff', '#bdb2ff', '#ffc6ff'];
+  
+  bgGraphics.textAlign(CENTER, CENTER);
+  bgGraphics.noStroke();
+  
+  // 繪製 50 個隨機分佈的可愛符號
+  for (let i = 0; i < 50; i++) {
+    let x = random(bgGraphics.width);
+    let y = random(bgGraphics.height);
+    let symbol = random(symbols);
+    let col = color(random(colors));
+    
+    // 設定透明度讓背景不干擾主畫面
+    col.setAlpha(120); 
+    bgGraphics.fill(col);
+    
+    bgGraphics.push();
+    bgGraphics.translate(x, y);
+    bgGraphics.rotate(random(TWO_PI)); // 隨機旋轉
+    bgGraphics.textSize(random(20, 60));
+    bgGraphics.text(symbol, 0, 0);
+    bgGraphics.pop();
+  }
+}
+
+// 繪製電視機外殼
+function drawTVShell(x, y, w, h, flash) {
+  push();
+  rectMode(CORNER);
+  noStroke();
+  
+  // 電視主體大外殼 (可愛的芥末黃)
+  fill('#ffca3a');
+  rect(x - 40, y - 40, w + 80, h + 80, 40);
+  
+  // 螢幕邊框 (平常深灰色，答錯時混合紅色)
+  fill(lerpColor(color('#333533'), color('#e63946'), flash / 255));
+  rect(x - 10, y - 10, w + 20, h + 20, 15);
+  pop();
+}
+
+// 繪製電視機天線與旋鈕
+function drawTVDecorations(x, y, w, h) {
+  push();
+  // 1. 天線 (Antennas)
+  stroke('#9a8c98');
+  strokeWeight(6);
+  line(x + w * 0.3, y - 40, x + w * 0.1, y - 100); // 左天線
+  line(x + w * 0.7, y - 40, x + w * 0.9, y - 100); // 右天線
+  fill('#9a8c98');
+  noStroke();
+  circle(x + w * 0.1, y - 100, 15); // 天線小球
+  circle(x + w * 0.9, y - 100, 15);
+
+  // 2. 右側控制旋鈕 (Knobs)
+  fill('#403d39');
+  circle(x + w + 20, y + 40, 26); // 頻道旋鈕
+  circle(x + w + 20, y + 100, 26); // 音量旋鈕
+  
+  // 3. 喇叭孔 (Speaker Grill)
+  fill(0, 80);
+  for(let i = 0; i < 4; i++) {
+    rect(x + w + 10, y + 160 + i * 15, 20, 5, 2);
+  }
+  pop();
 }
 
 // 動態計算佈局，避免每幀重複運算
@@ -302,13 +414,12 @@ function generateProblem() {
 
 function drawUI(x, y, vw, vh) {
   textAlign(CENTER);
-  fill(255);
+  let textColor = 255; // 在深色背景下使用白色文字
   
   // 顯示題目
   if (gameState === "START") {
     textAlign(LEFT); // 改為左對齊，方便放在按鈕下方
     
-    // 簡單模式說明
     fill(255);
     textSize(16);
     // 對齊簡單模式按鈕 (y=60)
@@ -326,6 +437,7 @@ function drawUI(x, y, vw, vh) {
     textAlign(LEFT);
     textSize(36);
     fill(255);
+    fill(textColor);
     text("AI 手勢數學遊戲", 20, 330);
     fill('#ffd166');
     text(`最高分紀錄: ${highScore}`, 20, 380);
@@ -337,12 +449,22 @@ function drawUI(x, y, vw, vh) {
     
     textSize(18);
     fill(255);
+    
+    // 如果手勢錯誤，偵測文字變為紅色
+    if (predictions.length > 0 && detectedCount !== targetAnswer) {
+      fill('#ff6b6b');
+    } else {
+      fill(textColor);
+    }
+
     let hint = (gameMode === "SIMPLE") ? "(請比出總數)" : "(左手十位、右手個位，上限55)";
     let statusText = isModelReady ? (predictions.length > 0 ? `目前偵測到：${detectedCount} ${hint}` : "🔍 請伸出手指進行答題") : "⌛ 模型載入中...";
     text(statusText, width / 2, y + vh + 40);
     
     // 顯示分數
     textSize(24);
+    textSize(24); 
+    fill(textColor);
     text(`得分: ${score}`, width / 2, y + vh + 80);
 
     // 顯示倒數計時
@@ -353,10 +475,12 @@ function drawUI(x, y, vw, vh) {
     // 顯示歷史紀錄 (靠左對齊，避開中間影像)
     textAlign(LEFT);
     textSize(16);
-    fill(255);
+    fill(textColor);
     text("歷史紀錄 (History):", 20, height - 120);
     for (let i = 0; i < problemHistory.length; i++) {
-      fill(255, 255 - (i * 40)); // 越舊的越透明
+      let historyColor = color(textColor);
+      historyColor.setAlpha(255 - (i * 40)); // 越舊的越透明
+      fill(historyColor);
       text(`✅ ${problemHistory[i]}`, 20, height - 90 + (i * 25));
     }
 
@@ -371,7 +495,7 @@ function drawUI(x, y, vw, vh) {
     fill('#ffd166');
     text("遊戲結束！", 20, 330);
     textSize(36);
-    fill(255);
+    fill(textColor);
     text(`最終得分: ${score}`, 20, 380);
     textSize(28);
     text(`最高分紀錄: ${highScore}`, 20, 430);
@@ -396,5 +520,10 @@ let startRestartBtn; // 已替換為模式按鈕
 function windowResized() {
   // 當視窗大小改變時，重新調整畫布大小
   resizeCanvas(windowWidth, windowHeight);
+  
+  // 重新生成背景以符合新尺寸
+  bgGraphics = createGraphics(windowWidth, windowHeight);
+  drawCuteBackground();
+  
   updateLayout();
 }
