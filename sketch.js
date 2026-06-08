@@ -355,13 +355,13 @@ function analyzeFingers() {
     for (let k = 0; k < 4; k++) {
       let tipDist = dist(points[tips[k]].x, points[tips[k]].y, wrist.x, wrist.y);
       let jointDist = dist(points[joints[k]].x, points[joints[k]].y, wrist.x, wrist.y);
-      if (tipDist > jointDist * 1.15) { // 1.15 倍率提供適度容錯
+      if (tipDist > jointDist * 1.35) { // 提高倍率至 1.35，要求手指必須伸得更直，減少誤判
         count++;
       }
     }
     
     // 2. 大拇指判定 (獨立邏輯，因為拇指是橫向彎曲)
-    if (dist(points[4].x, points[4].y, points[17].x, points[17].y) > dist(points[5].x, points[5].y, points[17].x, points[17].y) * 1.2) {
+    if (dist(points[4].x, points[4].y, points[17].x, points[17].y) > dist(points[5].x, points[5].y, points[17].x, points[17].y) * 1.4) {
       count++;
     }
 
