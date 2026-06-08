@@ -366,10 +366,19 @@ function analyzeFingers() {
     }
 
     sumAll += count; // 無論位置，先計算總手指數
-    if (wrist.x > capture.width / 2) {
-      tens += count;
+    
+    // 【優化邏輯】根據手掌數量自動判定：
+    if (predictions.length === 1) {
+      // 如果只有一隻手出現在畫面上，不論位置，一律視為「個位數」
+      units = count;
+      tens = 0;
     } else {
-      units += count;
+      // 如果有兩隻手（或以上），則恢復「左側為十位、右側為個位」的規則
+      if (wrist.x > capture.width / 2) {
+        tens += count;
+      } else {
+        units += count;
+      }
     }
   }
   
