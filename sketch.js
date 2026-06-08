@@ -13,6 +13,7 @@ let highScoreHard = 0;
 let gameMode = "SIMPLE"; // SIMPLE (10以內), HARD (11-55)
 let detectedCount = 0;
 let detectionHistory = []; // 用於穩定偵測結果 (防止跳動)
+let smoothingFrames = 12; // 平滑化幀數，增加此值可提升穩定性，但過大會產生遲鈍感
 let problemHistory = []; // 儲存答對的歷史題目
 let correctTimer = 0; // 用於確認穩定比出正確答案
 let shakeAmount = 0; // 電視機震動強度
@@ -387,9 +388,9 @@ function analyzeFingers() {
   // 困難模式：左手當十位，右手當個位
   let total = (gameMode === "SIMPLE") ? sumAll : (tens * 10 + units);
 
-  // 平滑化處理：取最近 5 幀出現次數最多的數字
+  // 平滑化處理：取最近幾幀 (smoothingFrames) 中出現次數最多的數字 (眾數)
   detectionHistory.push(total);
-  if (detectionHistory.length > 5) detectionHistory.shift();
+  if (detectionHistory.length > smoothingFrames) detectionHistory.shift();
   
   let counts = {};
   let maxFreq = 0;
