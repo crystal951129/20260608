@@ -39,6 +39,7 @@ function setup() {
   capture = createCapture(VIDEO);
   capture.size(640, 480); // 強制設定解析度，增加偵測穩定度
   // 隱藏預設在畫布下方的 HTML 影片元件
+  capture.elt.setAttribute('playsinline', ''); // 修正 iOS/行動裝置播放問題
   capture.hide();
 
   // 生成可愛的數學符號背景
@@ -220,8 +221,12 @@ function drawTVShell(x, y, w, h, flash) {
   fill('#ffca3a');
   rect(x - 40, y - 40, w + 80, h + 80, 40);
   
-  // 螢幕邊框 (平常深灰色，答錯時混合紅色)
-  fill(lerpColor(color('#333533'), color('#e63946'), flash / 255));
+  // 螢幕內槽底色：只有在攝影機還沒好或有閃光回饋時才明顯
+  if (flash > 0) {
+    fill(lerpColor(color('#333533'), color('#e63946'), flash / 255));
+  } else {
+    fill('#333533');
+  }
   rect(x - 10, y - 10, w + 20, h + 20, 15);
   pop();
 }
