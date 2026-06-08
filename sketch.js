@@ -16,6 +16,7 @@ let detectionHistory = []; // 用於穩定偵測結果 (防止跳動)
 let problemHistory = []; // 儲存答對的歷史題目
 let correctTimer = 0; // 用於確認穩定比出正確答案
 let shakeAmount = 0; // 電視機震動強度
+let wrongSkipTimer = 0; // 用於累積比錯超過 5 秒自動跳題
 let wrongTimer = 0; // 用於偵測錯誤手勢的持續時間
 let flashRed = 0; // 電視紅光閃爍強度
 let gameState = "START"; // START, PLAYING, END
@@ -161,6 +162,7 @@ function draw() {
     if (detectedCount === targetAnswer) {
       correctTimer++;
       wrongTimer = 0; // 答對時重置錯誤計時
+      wrongSkipTimer = 0; // 答對時重置跳題計時
       if (correctTimer > 30) { 
         score++;
         shakeAmount = 20;
@@ -171,6 +173,14 @@ function draw() {
     } else {
       correctTimer = 0; // 答錯時重置正確計時
       wrongTimer++;
+      wrongSkipTimer++;
+
+      // 如果持續比錯超過約 5 秒 (60fps * 5 = 300)
+      if (wrongSkipTimer > 300) {
+        generateProblem();
+        shakeAmount = 15; // 跳題時給予一個明顯震動提示
+      }
+
       if (wrongTimer > 45) { // 如果比錯的姿勢維持超過約 0.75 秒
         flashRed = 150; // 觸發紅光閃爍
         wrongTimer = 0; // 重置以容許連續閃爍
@@ -179,6 +189,7 @@ function draw() {
   } else {
     correctTimer = 0;
     wrongTimer = 0;
+    wrongSkipTimer = 0;
   }
 }
 
@@ -260,8 +271,9 @@ function drawTVDecorations(x, y, w, h) {
 
 // 動態計算佈局，避免每幀重複運算
 function updateLayout() {
-  let maxW = windowWidth * 0.5;
-  let maxH = windowHeight * 0.5;
+  // 提高比例，讓電視螢幕變大（原本是 0.5）
+  let maxW = windowWidth * 0.7;
+  let maxH = windowHeight * 0.65;
   videoW = maxW;
   videoH = maxH;
 
@@ -423,6 +435,8 @@ function generateProblem() {
     }
   }
   correctTimer = 0;
+  wrongTimer = 0;
+  wrongSkipTimer = 0;
 }
 
 function drawUI(x, y, vw, vh) {
