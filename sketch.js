@@ -348,22 +348,24 @@ function analyzeFingers() {
     let wrist = points[0]; // 手腕點位
     let count = 0;
 
-    // 改用距離判斷：若指尖到手腕的距離 > 關節到手腕的距離，代表手指伸直
-    // 這種方式不受手掌旋轉角度影響 (更穩定)
-    if (dist(points[8].x, points[8].y, wrist.x, wrist.y) > dist(points[6].x, points[6].y, wrist.x, wrist.y) * 1.1) count++;   // 食指
-    if (dist(points[12].x, points[12].y, wrist.x, wrist.y) > dist(points[10].x, points[10].y, wrist.x, wrist.y) * 1.1) count++; // 中指
-    if (dist(points[16].x, points[16].y, wrist.x, wrist.y) > dist(points[14].x, points[14].y, wrist.x, wrist.y) * 1.1) count++; // 無名指
-    if (dist(points[20].x, points[20].y, wrist.x, wrist.y) > dist(points[18].x, points[18].y, wrist.x, wrist.y) * 1.1) count++; // 小指
+    // 1. 檢查四根手指 (食指、中指、無名指、小指)
+    // 只要「指尖到手腕的距離」明顯大於「第二關節到手腕的距離」，就視為伸出
+    let tips = [8, 12, 16, 20];
+    let joints = [6, 10, 14, 18];
+    for (let k = 0; k < 4; k++) {
+      let tipDist = dist(points[tips[k]].x, points[tips[k]].y, wrist.x, wrist.y);
+      let jointDist = dist(points[joints[k]].x, points[joints[k]].y, wrist.x, wrist.y);
+      if (tipDist > jointDist * 1.15) { // 1.15 倍率提供適度容錯
+        count++;
+      }
+    }
     
-    // 大拇指判定：改用大拇指尖到小指根部 (17) 的距離判斷
+    // 2. 大拇指判定 (獨立邏輯，因為拇指是橫向彎曲)
     if (dist(points[4].x, points[4].y, points[17].x, points[17].y) > dist(points[5].x, points[5].y, points[17].x, points[17].y) * 1.2) {
       count++;
     }
 
     sumAll += count; // 無論位置，先計算總手指數
-    // 根據手在畫面上的位置決定權重 (畫布已鏡像，需對應模型座標)
-    // wrist.x > 320 代表在畫面左側 (十位數)
-    // wrist.x < 320 代表在畫面右側 (個位數)
     if (wrist.x > capture.width / 2) {
       tens += count;
     } else {
@@ -371,10 +373,10 @@ function analyzeFingers() {
     }
   }
   
-  // 自動切換偵測邏輯：
-  // 如果題目答案小於 10，使用簡單加總 (sumAll)
-  // 如果題目答案 >= 10，使用進位制 (tens*10 + units)
-  let total = (targetAnswer < 10) ? sumAll : (tens * 10 + units);
+  // 根據遊戲模式決定計算方式
+  // 簡單模式：直接算看到的總手指頭數 (不分左右手，任何組合皆可)
+  // 困難模式：左手當十位，右手當個位
+  let total = (gameMode === "SIMPLE") ? sumAll : (tens * 10 + units);
 
   // 平滑化處理：取最近 5 幀出現次數最多的數字
   detectionHistory.push(total);
