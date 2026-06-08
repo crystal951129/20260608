@@ -13,7 +13,6 @@ let highScoreHard = 0;
 let gameMode = "SIMPLE"; // SIMPLE (10以內), HARD (11-55)
 let detectedCount = 0;
 let detectionHistory = []; // 用於穩定偵測結果 (防止跳動)
-let smoothingFrames = 12; // 平滑化幀數，增加此值可提升穩定性，但過大會產生遲鈍感
 let problemHistory = []; // 儲存答對的歷史題目
 let correctTimer = 0; // 用於確認穩定比出正確答案
 let shakeAmount = 0; // 電視機震動強度
@@ -356,13 +355,13 @@ function analyzeFingers() {
     for (let k = 0; k < 4; k++) {
       let tipDist = dist(points[tips[k]].x, points[tips[k]].y, wrist.x, wrist.y);
       let jointDist = dist(points[joints[k]].x, points[joints[k]].y, wrist.x, wrist.y);
-      if (tipDist > jointDist * 1.35) { // 提高倍率至 1.35，要求手指必須伸得更直，減少誤判
+      if (tipDist > jointDist * 1.15) { // 1.15 倍率提供適度容錯
         count++;
       }
     }
     
     // 2. 大拇指判定 (獨立邏輯，因為拇指是橫向彎曲)
-    if (dist(points[4].x, points[4].y, points[17].x, points[17].y) > dist(points[5].x, points[5].y, points[17].x, points[17].y) * 1.4) {
+    if (dist(points[4].x, points[4].y, points[17].x, points[17].y) > dist(points[5].x, points[5].y, points[17].x, points[17].y) * 1.2) {
       count++;
     }
 
@@ -388,9 +387,9 @@ function analyzeFingers() {
   // 困難模式：左手當十位，右手當個位
   let total = (gameMode === "SIMPLE") ? sumAll : (tens * 10 + units);
 
-  // 平滑化處理：取最近幾幀 (smoothingFrames) 中出現次數最多的數字 (眾數)
+  // 平滑化處理：取最近 5 幀出現次數最多的數字
   detectionHistory.push(total);
-  if (detectionHistory.length > smoothingFrames) detectionHistory.shift();
+  if (detectionHistory.length > 5) detectionHistory.shift();
   
   let counts = {};
   let maxFreq = 0;
