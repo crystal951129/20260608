@@ -2,12 +2,14 @@ let capture;
 let handpose;
 let predictions = [];
 let isModelReady = false;
+let isModelLoaded = false; // 標記模型檔案是否下載完成
 
 // 數學遊戲變數
 let numA, numB, targetAnswer;
 let operationSymbol = "+"; // 記錄目前的運算符號
 let score = 0;
-let highScore = 0;
+let highScoreSimple = 0;
+let highScoreHard = 0;
 let gameMode = "SIMPLE"; // SIMPLE (10以內), HARD (11-55)
 let detectedCount = 0;
 let detectionHistory = []; // 用於穩定偵測結果 (防止跳動)
@@ -49,18 +51,10 @@ function setup() {
   // 初始化佈局變數
   updateLayout();
 
-  // 使用新版 ml5.handPose 初始化
-  // 因為 draw() 裡面已經用了 scale(-1, 1) 做鏡像，所以這裡要設為 false
-  handpose = ml5.handPose(capture, { flipped: false }, () => {
+  // 並行啟動模型載入：不要把 capture 傳進去，這樣模型會先開始下載
+  handpose = ml5.handPose({ flipped: false }, () => {
     console.log("手勢偵測模型已就緒！");
-    // 確保攝影機寬度正確後再開始偵測
-    let checkCapture = setInterval(() => {
-      if (capture.width > 0) {
-        isModelReady = true;
-        handpose.detectStart(capture, gotHands);
-        clearInterval(checkCapture);
-      }
-    }, 100);
+    isModelLoaded = true;
   });
 
   // 建立截圖按鈕
@@ -90,7 +84,8 @@ function setup() {
   timeRemaining = gameDuration;
 
   // 讀取最高分紀錄
-  highScore = parseInt(localStorage.getItem('mathHighScore')) || 0;
+  highScoreSimple = parseInt(localStorage.getItem('mathHighScoreSimple')) || 0;
+  highScoreHard = parseInt(localStorage.getItem('mathHighScoreHard')) || 0;
 }
 
 // 處理偵測結果的回呼函式
@@ -123,6 +118,12 @@ function draw() {
   }
   
   flashRed *= 0.9; // 紅光自動衰減
+
+  // 【優化點】並行檢查機制：模型下載完且相機有畫面時，立刻啟動偵測
+  if (!isModelReady && isModelLoaded && capture.width > 0) {
+    handpose.detectStart(capture, gotHands);
+    isModelReady = true;
+  }
 
   // 檢查攝影機是否準備好，更新一次佈局
   if (!captureLoaded && capture.width > 0) {
@@ -285,9 +286,16 @@ function handleTimer() {
     if (timeRemaining <= 0) {
       gameState = "END";
       timeRemaining = 0;
-      if (score > highScore) {
-        highScore = score;
-        localStorage.setItem('mathHighScore', highScore);
+      if (gameMode === "SIMPLE") {
+        if (score > highScoreSimple) {
+          highScoreSimple = score;
+          localStorage.setItem('mathHighScoreSimple', highScoreSimple);
+        }
+      } else {
+        if (score > highScoreHard) {
+          highScoreHard = score;
+          localStorage.setItem('mathHighScoreHard', highScoreHard);
+        }
       }
     }
   }
@@ -441,11 +449,11 @@ function drawUI(x, y, vw, vh) {
     // 將標題和最高分紀錄也改為靠左對齊，避開中間的影片區域
     textAlign(LEFT);
     textSize(36);
-    fill(255);
     fill(textColor);
     text("AI 手勢數學遊戲", 20, 330);
     fill('#ffd166');
-    text(`最高分紀錄: ${highScore}`, 20, 380);
+    text(`最高分 (簡單): ${highScoreSimple}`, 20, 380);
+    text(`最高分 (困難): ${highScoreHard}`, 20, 420);
 
   } else if (gameState === "PLAYING") {
     textSize(48);
@@ -463,7 +471,11 @@ function drawUI(x, y, vw, vh) {
     }
 
     let hint = (gameMode === "SIMPLE") ? "(請比出總數)" : "(左手十位、右手個位，上限55)";
-    let statusText = isModelReady ? (predictions.length > 0 ? `目前偵測到：${detectedCount} ${hint}` : "🔍 請伸出手指進行答題") : "⌛ 模型載入中...";
+    
+    // 提供更精確的進度提示
+    let loadingText = !isModelLoaded ? "⌛ 正在下載 AI 模型..." : "📷 正在啟動相機...";
+    let statusText = isModelReady ? (predictions.length > 0 ? `目前偵測到：${detectedCount} ${hint}` : "🔍 請伸出手指進行答題") : loadingText;
+    
     text(statusText, width / 2, y + vh + 40);
     
     // 顯示分數
@@ -503,7 +515,8 @@ function drawUI(x, y, vw, vh) {
     fill(textColor);
     text(`最終得分: ${score}`, 20, 380);
     textSize(28);
-    text(`最高分紀錄: ${highScore}`, 20, 430);
+    let currentHighScore = (gameMode === "SIMPLE") ? highScoreSimple : highScoreHard;
+    text(`最高分紀錄: ${currentHighScore}`, 20, 430);
     textSize(24);
     text("請點擊左側按鈕重新開始", 20, 480);
   }
@@ -515,9 +528,11 @@ function takeScreenshot() {
 }
 
 function resetHighScore() {
-  highScore = 0;
+  highScoreSimple = 0;
+  highScoreHard = 0;
   problemHistory = []; // 同時清空歷史清單
-  localStorage.removeItem('mathHighScore');
+  localStorage.removeItem('mathHighScoreSimple');
+  localStorage.removeItem('mathHighScoreHard');
 }
 
 let startRestartBtn; // 已替換為模式按鈕
